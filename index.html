@@ -770,31 +770,14 @@ async function fetchPrice(asset) {
       asset.priceName = 'Bitcoin';
 
     } else if (TW_STOCK_TYPE.has(asset.type) || asset.cur === 'TWD') {
-      // 台股：先試 TWSE 官方 API（盤中即時，免 proxy）
-      try {
-        const r = await fetch(
-          `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${asset.symbol}.tw&json=1&delay=0`,
-          { cache: 'no-store', signal: AbortSignal.timeout(5000) }
-        );
-        const d = await r.json();
-        const info = d?.msgArray?.[0];
-        if (info) {
-          const price = parseFloat(info.z !== '-' ? info.z : info.y); // z=即時價, y=昨收
-          if (!isNaN(price)) {
-            asset.nowPrice  = price;
-            asset.priceName = info.n || asset.symbol;
-            return;
-          }
-        }
-      } catch {}
-      // 備援：Yahoo Finance via proxy
+      // 台股：Yahoo Finance proxy，用數字代號（如 2330.TW）
       const data = await fetchViaProxy(
         `https://query1.finance.yahoo.com/v8/finance/chart/${asset.symbol}.TW?interval=1d&range=1d`
       );
       const meta = data?.chart?.result?.[0]?.meta;
       if (!meta) throw new Error('無資料');
       asset.nowPrice  = meta.regularMarketPrice ?? null;
-      asset.priceName = meta.shortName || meta.longName || asset.symbol;
+      asset.priceName = asset.symbol; // 顯示代號數字，不取公司名稱
 
     } else {
       // 美股：Yahoo Finance via proxy 備援清單
