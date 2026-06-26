@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>資產配置</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+TC:wght@300;400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0f0e;
+    --surface: #141714;
+    --border: #1f231f;
+    --muted: #3a3f3a;
+    --text-dim: #6b706b;
+    --text: #c8ccc8;
+    --text-bright: #e8ece8;
+    --green: #4ade80;
+    --green-dim: #0a1a0e;
+    --green-border: #1a3320;
+    --red: #f87171;
+    --red-dim: #1a0a0a;
+    --red-border: #3b1515;
+    --accent: #a3e635;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans TC', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    padding: 28px 20px;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 18px;
+    margin-bottom: 28px;
+  }
+
+  .brand {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+  }
+  .brand span { color: var(--accent); }
+
+  .header-right { display: flex; align-items: center; gap: 12px; }
+
+  .last-updated {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .btn-icon {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 6px 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .btn-icon:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-icon:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* 登入區 */
+  .login-section {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    padding: 40px 24px;
+    text-align: center;
+    margin-bottom: 24px;
+  }
+  .login-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .login-desc {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+  .btn-google {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--text-bright);
+    color: #1a1a1a;
+    border: none;
+    padding: 11px 22px;
+    font-family: 'IBM Plex Sans TC', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .btn-google:hover { opacity: 0.9; }
+  .btn-google:disabled { opacity: 0.4; cursor: not-allowed; }
+  .google-icon { width: 16px; height: 16px; flex-shrink: 0; }
+
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+  .user-avatar { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border); }
+  .btn-signout {
+    background: none; border: none; color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+    cursor: pointer; padding: 0; transition: color 0.15s;
+  }
+  .btn-signout:hover { color: var(--red); }
+
+  /* 設定區 */
+  .config-section {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    padding: 16px 20px;
+    margin-bottom: 24px;
+  }
+  .config-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+  }
+  .config-body { display: none; margin-top: 16px; }
+  .config-body.open { display: block; }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .form-row.full { grid-template-columns: 1fr; }
+
+  .form-group label {
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+  input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text-bright);
+    padding: 8px 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input:focus { border-color: var(--accent); }
+  input::placeholder { color: var(--muted); }
+
+  .btn-row { display: flex; gap: 10px; margin-top: 14px; }
+  .btn-primary {
+    background: var(--accent); color: #0d0f0e; border: none;
+    padding: 9px 18px; font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+    cursor: pointer; transition: opacity 0.15s;
+  }
+  .btn-primary:hover { opacity: 0.85; }
+
+  .config-hint {
+    font-size: 11px; color: var(--text-dim); line-height: 1.7;
+    margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);
+  }
+  .config-hint a { color: var(--accent); text-decoration: none; }
+  .config-hint code {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+    background: var(--bg); padding: 1px 5px; border: 1px solid var(--border);
+  }
+
+  /* 狀態列 */
+  .status-bar {
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+    padding: 9px 14px; margin-bottom: 20px; display: none;
+  }
+  .status-bar.error   { color: var(--red);      background: var(--red-dim);   border: 1px solid var(--red-border);   display: block; }
+  .status-bar.loading { color: var(--text-dim); background: var(--surface);   border: 1px solid var(--border);       display: block; }
+  .status-bar.success { color: var(--green);    background: var(--green-dim); border: 1px solid var(--green-border); display: block; }
+
+  /* 總覽卡片 */
+  .summary-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 1px; background: var(--border); border: 1px solid var(--border); margin-bottom: 24px;
+  }
+  .summary-card { background: var(--surface); padding: 16px 18px; }
+  .summary-label {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+    letter-spacing: 0.12em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 7px;
+  }
+  .summary-value {
+    font-family: 'IBM Plex Mono', monospace; font-size: 18px;
+    font-weight: 600; color: var(--text-bright); line-height: 1;
+  }
+  .summary-value.pos { color: var(--green); }
+  .summary-value.neg { color: var(--red); }
+  .summary-sub { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim); margin-top: 5px; }
+  .summary-sub.pos { color: var(--green); }
+  .summary-sub.neg { color: var(--red); }
+
+  .section-label {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+    letter-spacing: 0.15em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 14px;
+  }
+
+  /* 圓餅圖 */
+  .chart-section { margin-bottom: 28px; }
+  .chart-wrap { display: flex; gap: 28px; align-items: center; flex-wrap: wrap; }
+  .chart-canvas-wrap { width: 190px; height: 190px; flex-shrink: 0; }
+  .legend { flex: 1; min-width: 160px; display: flex; flex-direction: column; gap: 13px; }
+  .legend-item { display: flex; align-items: center; gap: 11px; }
+  .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .legend-info { flex: 1; min-width: 0; }
+  .legend-name { font-size: 13px; color: var(--text-bright); margin-bottom: 2px; }
+  .legend-value { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--text-dim); }
+  .legend-pct { font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 600; color: var(--text-bright); }
+
+  /* 明細表 */
+  .detail-section { margin-bottom: 24px; }
+  .detail-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .detail-table th {
+    font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 400;
+    letter-spacing: 0.1em; color: var(--text-dim); padding: 7px 10px;
+    border-bottom: 1px solid var(--border); text-transform: uppercase;
+    text-align: right; white-space: nowrap;
+  }
+  .detail-table th:first-child, .detail-table th:nth-child(2) { text-align: left; }
+  .detail-table td {
+    font-family: 'IBM Plex Mono', monospace; padding: 11px 10px;
+    border-bottom: 1px solid var(--border); text-align: right;
+    color: var(--text); vertical-align: middle; white-space: nowrap;
+  }
+  .detail-table td:first-child, .detail-table td:nth-child(2) { text-align: left; }
+  .detail-table tr:hover td { background: var(--surface); }
+
+  .cat-dot-inline { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; vertical-align: middle; }
+  .ticker-tag {
+    font-size: 10px; color: var(--text-dim); margin-left: 4px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .pos { color: var(--green) !important; }
+  .neg { color: var(--red) !important; }
+  .dim { color: var(--text-dim) !important; }
+  .price-fetching { color: var(--muted) !important; font-style: italic; }
+
+  .empty-chart {
+    text-align: center; padding: 50px 20px;
+    color: var(--text-dim); font-size: 13px; border: 1px dashed var(--border);
+  }
+
+  /* Client ID 設定 */
+  .setup-section {
+    border: 1px solid var(--border); background: var(--surface);
+    padding: 24px; margin-bottom: 24px;
+  }
+  .setup-title {
+    font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+    letter-spacing: 0.15em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 16px;
+  }
+
+  @media (max-width: 560px) {
+    body { padding: 20px 14px; }
+    .summary-grid { grid-template-columns: 1fr 1fr; }
+    .chart-canvas-wrap { width: 150px; height: 150px; }
+    .summary-value { font-size: 15px; }
+    .form-row { grid-template-columns: 1fr; }
+    .detail-table .col-hide { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><span>//</span> 資產配置</div>
+  <div class="header-right">
+    <span class="last-updated" id="lastUpdated">尚未載入</span>
+    <div id="userInfo" style="display:none" class="user-info">
+      <img id="userAvatar" class="user-avatar" src="" alt="" />
+      <span id="userName"></span>
+      <button class="btn-signout" onclick="signOut()">✕</button>
+    </div>
+    <button class="btn-icon" id="refreshBtn" onclick="reloadAll()" style="display:none">↻ 更新</button>
+  </div>
+</header>
+
+<!-- Step 1：設定 Client ID -->
+<div id="setupSection" class="setup-section" style="display:none">
+  <div class="setup-title">⚙ 初始設定 — OAuth Client ID</div>
+  <div class="form-row full">
+    <div class="form-group">
+      <label>Google OAuth Client ID</label>
+      <input type="text" id="clientIdInput" placeholder="xxxxxxxx.apps.googleusercontent.com" />
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="btn-primary" onclick="saveClientId()">儲存</button>
+  </div>
+  <div class="config-hint" style="margin-top:14px">
+    前往 <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a>
+    → 建立專案 → 啟用 <strong>Google Sheets API</strong>
+    → 憑證 → 建立 OAuth 2.0 用戶端 ID（類型：網頁應用程式）<br>
+    → 授權的 JavaScript 來源填入你的網站網址（本機測試填 <code>http://localhost:3000</code>）<br>
+    → 複製用戶端 ID 填入上方。
+  </div>
+</div>
+
+<!-- Step 2：Google 登入 -->
+<div id="loginSection" class="login-section" style="display:none">
+  <div class="login-title">使用 Google 帳號登入</div>
+  <p class="login-desc">登入後可讀取你的私人試算表。<br>資料僅在瀏覽器中處理，不會上傳至任何伺服器。</p>
+  <button class="btn-google" id="loginBtn" onclick="signIn()">
+    <svg class="google-icon" viewBox="0 0 48 48">
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+    </svg>
+    使用 Google 帳號登入
+  </button>
+</div>
+
+<!-- Step 3：試算表設定 -->
+<div class="config-section" id="configSection" style="display:none">
+  <div class="config-title" onclick="toggleConfig()">
+    <span>⚙ 試算表設定</span>
+    <span id="configToggleIcon">▼</span>
+  </div>
+  <div class="config-body" id="configBody">
+    <div class="form-row full">
+      <div class="form-group">
+        <label>Google 試算表 ID</label>
+        <input type="text" id="sheetId" placeholder="1QvFuibmINQGPqeRvrDKXt0LJB7ivhw9IErjOR3gd27A" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>工作表分頁名稱</label>
+        <input type="text" id="sheetName" placeholder="工作表1" />
+      </div>
+      <div class="form-group">
+        <label>USD → TWD 匯率</label>
+        <input type="number" id="usdRate" placeholder="32" min="1" step="0.01" />
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-primary" onclick="saveAndLoad()">儲存並載入</button>
+    </div>
+    <div class="config-hint">
+      <strong>試算表欄位格式（第 1 列為標題，從第 2 列起填入）：</strong><br><br>
+      A：類型 &nbsp;|&nbsp; B：代號 &nbsp;|&nbsp; C：幣別（<code>TWD</code>/<code>USD</code>）&nbsp;|&nbsp; D：成本（每股/每顆）&nbsp;|&nbsp; E：數量<br><br>
+      範例：<code>台股</code> / <code>2330</code> / <code>TWD</code> / <code>85</code> / <code>5000</code><br>
+      範例：<code>美股</code> / <code>AAPL</code> / <code>USD</code> / <code>180</code> / <code>30</code><br>
+      範例：<code>比特幣</code> / <code>BTC</code> / <code>USD</code> / <code>60000</code> / <code>0.5</code><br><br>
+      現價會自動抓取（台股、美股透過 Yahoo Finance；比特幣透過 CoinGecko）。
+    </div>
+  </div>
+</div>
+
+<div class="status-bar" id="statusBar"></div>
+
+<!-- 總覽 -->
+<div class="summary-grid" id="summaryGrid" style="display:none">
+  <div class="summary-card">
+    <div class="summary-label">總市值（TWD）</div>
+    <div class="summary-value" id="totalTWD">—</div>
+    <div class="summary-sub" id="totalUSD">—</div>
+  </div>
+  <div class="summary-card">
+    <div class="summary-label">總成本（TWD）</div>
+    <div class="summary-value" id="totalCostTWD">—</div>
+    <div class="summary-sub" id="totalCostUSD">—</div>
+  </div>
+  <div class="summary-card">
+    <div class="summary-label">未實現損益</div>
+    <div class="summary-value" id="totalPnl">—</div>
+    <div class="summary-sub" id="totalPnlPct">—</div>
+  </div>
+</div>
+
+<!-- 圓餅圖 -->
+<div class="chart-section" id="chartSection" style="display:none">
+  <div class="section-label">資產配置（市值）</div>
+  <div id="chartContainer"><div class="empty-chart">抓取現價中…</div></div>
+</div>
+
+<!-- 明細表 -->
+<div class="detail-section" id="detailSection" style="display:none">
+  <div class="section-label">各資產明細</div>
+  <table class="detail-table">
+    <thead>
+      <tr>
+        <th>類型</th>
+        <th>代號</th>
+        <th class="col-hide">數量</th>
+        <th class="col-hide">成本單價</th>
+        <th>現價</th>
+        <th>市值（原幣）</th>
+        <th>市值（TWD）</th>
+        <th>損益（TWD）</th>
+        <th>報酬率</th>
+      </tr>
+    </thead>
+    <tbody id="detailBody"></tbody>
+  </table>
+</div>
+
+<script>
+// ── 顏色 ────────────────────────────────────────────────────
+const COLORS = { '台股':'#f87171', '美股':'#60a5fa', '比特幣':'#fb923c', 'BTC':'#fb923c' };
+const PALETTE = ['#a3e635','#4ade80','#34d399','#22d3ee','#818cf8','#c084fc','#fb7185','#fbbf24'];
+const getColor = (name, i) => COLORS[name] || PALETTE[i % PALETTE.length];
+
+// ── 本地儲存 ─────────────────────────────────────────────────
+// ── 預設值（直接寫死，任何裝置開啟都不需手動輸入）──────────
+const DEFAULTS = {
+  clientId:  '721012529855-83hrsfdn1t3fuob5316jbk7ulupbqj9t.apps.googleusercontent.com',
+  sheetId:   '1QvFuibmINQGPqeRvrDKXt0LJB7ivhw9IErjOR3gd27A',
+  sheetName: '工作表1',
+  usdRate:   32,
+};
+
+const CFG_KEY = 'asset_config_v4';
+const loadCfg = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CFG_KEY)) || {};
+    return { ...DEFAULTS, ...saved };
+  } catch { return { ...DEFAULTS }; }
+};
+const saveCfg = cfg => localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+
+let tokenClient = null;
+let accessToken = null;
+
+// ── 初始化 ──────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  const cfg = loadCfg();
+  if (cfg.sheetId)   document.getElementById('sheetId').value   = cfg.sheetId;
+  if (cfg.sheetName) document.getElementById('sheetName').value = cfg.sheetName;
+  document.getElementById('usdRate').value = cfg.usdRate || '32';
+
+  if (!cfg.clientId) {
+    document.getElementById('setupSection').style.display = 'block';
+  } else {
+    document.getElementById('loginSection').style.display = 'block';
+    initOAuth(cfg.clientId);
+  }
+});
+
+function saveClientId() {
+  const id = document.getElementById('clientIdInput').value.trim();
+  if (!id) return;
+  const cfg = loadCfg();
+  cfg.clientId = id;
+  saveCfg(cfg);
+  document.getElementById('setupSection').style.display = 'none';
+  document.getElementById('loginSection').style.display = 'block';
+  initOAuth(id);
+}
+
+function initOAuth(clientId) {
+  const tryInit = () => {
+    if (!window.google?.accounts?.oauth2) { setTimeout(tryInit, 200); return; }
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: 'https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/userinfo.profile',
+      callback: onTokenReceived,
+    });
+  };
+  tryInit();
+}
+
+// ── 登入 / 登出 ──────────────────────────────────────────────
+function signIn() {
+  if (!tokenClient) { showStatus('error', 'OAuth 尚未初始化，請稍候再試'); return; }
+  document.getElementById('loginBtn').disabled = true;
+  tokenClient.requestAccessToken();
+}
+
+async function onTokenReceived(resp) {
+  document.getElementById('loginBtn').disabled = false;
+  if (resp.error) { showStatus('error', `登入失敗：${resp.error}`); return; }
+  accessToken = resp.access_token;
+
+  try {
+    const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    const u = await r.json();
+    document.getElementById('userName').textContent = u.name || u.email || '';
+    if (u.picture) document.getElementById('userAvatar').src = u.picture;
+    document.getElementById('userInfo').style.display = 'flex';
+  } catch {}
+
+  document.getElementById('loginSection').style.display = 'none';
+  document.getElementById('configSection').style.display = 'block';
+  document.getElementById('refreshBtn').style.display = 'block';
+
+  const cfg = loadCfg();
+  if (cfg.sheetId) { openConfig(false); reloadAll(); }
+  else openConfig(true);
+}
+
+function signOut() {
+  if (accessToken) google.accounts.oauth2.revoke(accessToken);
+  accessToken = null;
+  ['summaryGrid','chartSection','detailSection'].forEach(id => document.getElementById(id).style.display = 'none');
+  document.getElementById('loginSection').style.display = 'block';
+  document.getElementById('configSection').style.display = 'none';
+  document.getElementById('refreshBtn').style.display = 'none';
+  document.getElementById('userInfo').style.display = 'none';
+  document.getElementById('lastUpdated').textContent = '尚未載入';
+  document.getElementById('statusBar').style.display = 'none';
+}
+
+// ── 設定面板 ─────────────────────────────────────────────────
+function toggleConfig() { openConfig(!document.getElementById('configBody').classList.contains('open')); }
+function openConfig(open) {
+  document.getElementById('configBody').classList.toggle('open', open);
+  document.getElementById('configToggleIcon').textContent = open ? '▲' : '▼';
+}
+
+function saveAndLoad() {
+  const cfg = loadCfg();
+  cfg.sheetId   = document.getElementById('sheetId').value.trim();
+  cfg.sheetName = document.getElementById('sheetName').value.trim() || '工作表1';
+  cfg.usdRate   = parseFloat(document.getElementById('usdRate').value) || 32;
+  if (!cfg.sheetId) { showStatus('error', '請填寫試算表 ID'); return; }
+  saveCfg(cfg);
+  openConfig(false);
+  reloadAll();
+}
+
+// ── 主流程：讀表 → 抓現價 → 渲染 ───────────────────────────
+async function reloadAll() {
+  if (!accessToken) return;
+  const cfg = loadCfg();
+  if (!cfg.sheetId) { openConfig(true); return; }
+
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true; btn.textContent = '載入中…';
+  showStatus('loading', '讀取試算表…');
+
+  // 1. 讀試算表
+  const sheetName = cfg.sheetName || '工作表1';
+  const range = encodeURIComponent(`${sheetName}!A2:E100`);
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${cfg.sheetId}/values/${range}`;
+
+  let rows;
+  try {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      if (res.status === 401) { showStatus('error', '登入已過期，請重新登入'); signOut(); return; }
+      showStatus('error', `試算表錯誤：${err?.error?.message || res.status}`);
+      return;
+    }
+    const data = await res.json();
+    rows = (data.values || []).filter(r => r[0] && r[1]);
+    if (rows.length === 0) {
+      showStatus('error', '試算表無資料，請確認欄位：A 類型、B 代號、C 幣別、D 成本、E 數量');
+      return;
+    }
+  } catch (e) { showStatus('error', `網路錯誤：${e.message}`); btn.disabled = false; btn.textContent = '↻ 更新'; return; }
+
+  // 2. 解析列
+  const usdRate = cfg.usdRate || 32;
+  const assets = rows.map(r => ({
+    type:      r[0]?.trim() || '',
+    symbol:    r[1]?.trim().toUpperCase() || '',
+    cur:       (r[2] || 'TWD').trim().toUpperCase(),
+    costPrice: parseNum(r[3]),
+    qty:       parseNum(r[4]),
+    nowPrice:  null,
+  })).filter(a => a.symbol && a.qty > 0);
+
+  // 先顯示骨架
+  showSkeleton(assets, usdRate);
+
+  // 3. 抓現價（並行）
+  showStatus('loading', `抓取 ${assets.length} 筆現價…`);
+  await Promise.all(assets.map(a => fetchPrice(a)));
+
+  // 4. 計算並渲染
+  renderAll(assets, usdRate);
+  const now = new Date().toLocaleString('zh-TW', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+  document.getElementById('lastUpdated').textContent = `更新於 ${now}`;
+  showStatus('success', `完成，${assets.filter(a => a.nowPrice != null).length}/${assets.length} 筆現價取得`);
+  setTimeout(() => document.getElementById('statusBar').style.display = 'none', 3000);
+
+  btn.disabled = false; btn.textContent = '↻ 更新';
+}
+
+// ── 抓現價 ────────────────────────────────────────────────────
+const BTC_SYMBOLS = new Set(['BTC', 'BITCOIN', '比特幣']);
+
+async function fetchPrice(asset) {
+  try {
+    if (BTC_SYMBOLS.has(asset.symbol) || BTC_SYMBOLS.has(asset.type)) {
+      // CoinGecko — 支援 CORS，不需 proxy
+      const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd', { cache: 'no-store' });
+      const d = await r.json();
+      asset.nowPrice = d?.bitcoin?.usd ?? null;
+      asset.priceName = 'Bitcoin';
+    } else {
+      // Yahoo Finance via allorigins proxy
+      const ticker = asset.cur === 'TWD' ? asset.symbol + '.TW' : asset.symbol;
+      const yUrl   = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1d`;
+      const proxy  = `https://api.allorigins.win/get?url=${encodeURIComponent(yUrl)}`;
+      const r      = await fetch(proxy, { cache: 'no-store' });
+      const outer  = await r.json();
+      const data   = JSON.parse(outer.contents);
+      const meta   = data?.chart?.result?.[0]?.meta;
+      if (!meta) throw new Error('無資料');
+      asset.nowPrice  = meta.regularMarketPrice ?? null;
+      asset.priceName = meta.shortName || meta.longName || asset.symbol;
+    }
+  } catch {
+    asset.nowPrice  = null;
+    asset.priceName = asset.symbol;
+  }
+}
+
+// ── 渲染 ─────────────────────────────────────────────────────
+let pieChart = null;
+
+function calcAsset(a, usdRate) {
+  const mult       = a.cur === 'USD' ? usdRate : 1;
+  const marketVal  = a.nowPrice != null ? a.nowPrice * a.qty : null;
+  const costVal    = a.costPrice * a.qty;
+  const pnl        = marketVal != null ? marketVal - costVal : null;
+  return {
+    ...a,
+    marketVal,
+    costVal,
+    pnl,
+    pnlPct:      costVal > 0 && pnl != null ? pnl / costVal * 100 : null,
+    marketValTWD: marketVal != null ? marketVal * mult : null,
+    costValTWD:   costVal   * mult,
+    pnlTWD:      pnl       != null ? pnl * mult : null,
+  };
+}
+
+function showSkeleton(assets, usdRate) {
+  document.getElementById('summaryGrid').style.display = 'grid';
+  document.getElementById('chartSection').style.display = 'block';
+  document.getElementById('detailSection').style.display = 'block';
+}
+
+function renderAll(assets, usdRate) {
+  const calc = assets.map(a => calcAsset(a, usdRate));
+  const withPrice = calc.filter(a => a.marketValTWD != null);
+
+  const totalMV    = withPrice.reduce((s, a) => s + a.marketValTWD, 0);
+  const totalCost  = calc.reduce((s, a) => s + a.costValTWD, 0);
+  const totalPnl   = totalMV - calc.filter(a => a.pnlTWD != null).reduce((s,a) => s, 0);
+  const realPnl    = withPrice.reduce((s, a) => s + a.pnlTWD, 0);
+  const pnlPct     = totalCost > 0 ? realPnl / totalCost * 100 : null;
+
+  // 總覽
+  const cls  = realPnl >= 0 ? 'pos' : 'neg';
+  const sign = n => n >= 0 ? '+' : '';
+  document.getElementById('totalTWD').textContent     = 'NT$' + fmt(totalMV, 0);
+  document.getElementById('totalUSD').textContent     = '≈ US$' + fmt(totalMV / usdRate, 0) + `（匯率 ${usdRate}）`;
+  document.getElementById('totalCostTWD').textContent = 'NT$' + fmt(totalCost, 0);
+  document.getElementById('totalCostUSD').textContent = '≈ US$' + fmt(totalCost / usdRate, 0);
+  document.getElementById('totalPnl').textContent     = sign(realPnl) + 'NT$' + fmt(Math.abs(realPnl), 0);
+  document.getElementById('totalPnl').className       = `summary-value ${cls}`;
+  document.getElementById('totalPnlPct').textContent  = pnlPct != null ? sign(pnlPct) + fmt(pnlPct, 2) + '%' : '—';
+  document.getElementById('totalPnlPct').className    = `summary-sub ${cls}`;
+
+  // 圓餅圖（只用有現價的）
+  const colors = calc.map((a, i) => getColor(a.type, i));
+  document.getElementById('chartContainer').innerHTML = `
+    <div class="chart-wrap">
+      <div class="chart-canvas-wrap"><canvas id="pieCanvas"></canvas></div>
+      <div class="legend" id="legend"></div>
+    </div>`;
+
+  if (pieChart) pieChart.destroy();
+  pieChart = new Chart(document.getElementById('pieCanvas').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: withPrice.map(a => a.type),
+      datasets: [{ data: withPrice.map(a => a.marketValTWD), backgroundColor: withPrice.map((a,i) => getColor(a.type, calc.indexOf(a))), borderColor: '#0d0f0e', borderWidth: 3 }]
+    },
+    options: { cutout: '60%', plugins: { legend: { display: false }, tooltip: { enabled: false } }, animation: { duration: 600 } }
+  });
+
+  document.getElementById('legend').innerHTML = withPrice.map((a, i) => {
+    const pct    = totalMV > 0 ? (a.marketValTWD / totalMV * 100).toFixed(1) : '0.0';
+    const valStr = a.cur === 'USD' ? `US$${fmt(a.marketVal)} ≈ NT$${fmt(a.marketValTWD, 0)}` : `NT$${fmt(a.marketValTWD, 0)}`;
+    const color  = getColor(a.type, calc.indexOf(a));
+    return `<div class="legend-item">
+      <div class="legend-dot" style="background:${color}"></div>
+      <div class="legend-info">
+        <div class="legend-name">${a.type} <span style="color:var(--text-dim);font-size:11px">${a.symbol}</span></div>
+        <div class="legend-value">${valStr}</div>
+      </div>
+      <div class="legend-pct">${pct}%</div>
+    </div>`;
+  }).join('');
+
+  // 明細表
+  const curSym = c => c === 'USD' ? 'US$' : 'NT$';
+  document.getElementById('detailBody').innerHTML = calc.map((a, i) => {
+    const pCls = a.pnl != null ? (a.pnl >= 0 ? 'pos' : 'neg') : 'dim';
+    const s    = a.pnl != null && a.pnl >= 0 ? '+' : '';
+    const qty  = a.qty % 1 === 0 ? fmt(a.qty, 0) : fmt(a.qty, 4);
+    const nowStr = a.nowPrice != null
+      ? `${curSym(a.cur)}${fmt(a.nowPrice)}`
+      : `<span class="price-fetching">取得失敗</span>`;
+    const mvStr  = a.marketVal  != null ? `${curSym(a.cur)}${fmt(a.marketVal)}` : '—';
+    const mvTwd  = a.marketValTWD != null ? `NT$${fmt(a.marketValTWD, 0)}` : '—';
+    const pnlStr = a.pnlTWD != null ? `${s}NT$${fmt(Math.abs(a.pnlTWD), 0)}` : '—';
+    const pctStr = a.pnlPct != null ? `${s}${fmt(a.pnlPct, 2)}%` : '—';
+    return `<tr>
+      <td><span class="cat-dot-inline" style="background:${colors[i]}"></span>${a.type}</td>
+      <td style="color:var(--text-bright)">${a.priceName || a.symbol}</td>
+      <td class="col-hide">${qty}</td>
+      <td class="col-hide dim">${curSym(a.cur)}${fmt(a.costPrice)}</td>
+      <td>${nowStr}</td>
+      <td>${mvStr}</td>
+      <td>${mvTwd}</td>
+      <td class="${pCls}">${pnlStr}</td>
+      <td class="${pCls}">${pctStr}</td>
+    </tr>`;
+  }).join('');
+}
+
+function parseNum(v) { return parseFloat(String(v || '0').replace(/,/g, '')) || 0; }
+
+function showStatus(type, msg) {
+  const el = document.getElementById('statusBar');
+  el.className = `status-bar ${type}`;
+  el.textContent = msg;
+}
+
+const fmt = (n, dp = 2) =>
+  n.toLocaleString('zh-TW', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+</script>
+</body>
+</html>
