@@ -972,7 +972,7 @@ function renderAll(assets, usdRate) {
   const curSym = c => c === 'USD' ? 'US$' : 'NT$';
   document.getElementById('detailBody').innerHTML = calc.map((a, i) => {
     const pCls = a.pnl != null ? (a.pnl >= 0 ? 'pos' : 'neg') : 'dim';
-    const s    = a.pnl != null && a.pnl >= 0 ? '+' : '';
+    const s    = a.pnl != null ? (a.pnl >= 0 ? '+' : '-') : '';
     const qty  = a.qty % 1 === 0 ? fmt(a.qty, 0) : fmt(a.qty, 4);
     const nowStr = a.nowPrice != null
       ? `${curSym(a.cur)}${fmt(a.nowPrice)}`
@@ -980,7 +980,7 @@ function renderAll(assets, usdRate) {
     const mvStr  = a.marketVal  != null ? `${curSym(a.cur)}${fmt(a.marketVal)}` : '—';
     const mvTwd  = a.marketValTWD != null ? `NT$${fmt(a.marketValTWD, 0)}` : '—';
     const pnlStr = a.pnlTWD != null ? `${s}NT$${fmt(Math.abs(a.pnlTWD), 0)}` : '—';
-    const pctStr = a.pnlPct != null ? `${s}${fmt(a.pnlPct, 2)}%` : '—';
+    const pctStr = a.pnlPct != null ? `${s}${fmt(Math.abs(a.pnlPct), 2)}%` : '—';
     return `<tr>
       <td><span class="cat-dot-inline" style="background:${colors[i]}"></span>${a.type}</td>
       <td style="color:var(--text-bright)">${a.priceName || a.symbol}</td>
