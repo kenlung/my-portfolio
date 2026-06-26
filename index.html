@@ -756,14 +756,21 @@ async function reloadAll() {
 
   // 2. 解析列
   const usdRate = cfg.usdRate || 32;
-  const assets = rows.map(r => ({
-    type:      r[0]?.trim() || '',
-    symbol:    r[1]?.trim().toUpperCase() || '',
-    cur:       (r[2] || 'TWD').trim().toUpperCase(),
-    costPrice: parseNum(r[3]),
-    qty:       parseNum(r[4]),
-    nowPrice:  null,
-  })).filter(a => a.symbol && a.qty > 0);
+  const assets = rows.map(r => {
+    const rawSymbol = r[1]?.trim() || '';
+    // 若代號含空白（如「景碩 3189」），取最後一段數字作為股票代號
+    const numMatch = rawSymbol.match(/(\d{4,6})\s*$/);
+    const symbol = numMatch ? numMatch[1] : rawSymbol.toUpperCase();
+    return {
+      type:        r[0]?.trim() || '',
+      symbol,
+      displayName: rawSymbol,
+      cur:         (r[2] || 'TWD').trim().toUpperCase(),
+      costPrice:   parseNum(r[3]),
+      qty:         parseNum(r[4]),
+      nowPrice:    null,
+    };
+  }).filter(a => a.symbol && a.qty > 0);
 
   // 先顯示骨架
   showSkeleton(assets, usdRate);
@@ -783,8 +790,9 @@ async function reloadAll() {
 }
 
 // ── 抓現價 ────────────────────────────────────────────────────
-const BTC_SYMBOLS   = new Set(['BTC', 'BITCOIN', '比特幣']);
+const BTC_SYMBOLS   = new Set(['BTC', 'BITCOIN', '比特幣', '加密貨幣', 'CRYPTO']);
 const TW_STOCK_TYPE = new Set(['台股', '台灣股票', 'TW']);
+const TW_CURRENCY   = new Set(['TWD', 'NTD', 'NT$']);
 
 // 台股：FinMind 快取（同一批次只呼叫一次）
 const finmindCache = {};
@@ -805,7 +813,7 @@ async function fetchTWPrice(symbol) {
 async function fetchPrice(asset) {
   const cfg = loadCfg();
   try {
-    if (BTC_SYMBOLS.has(asset.symbol) || BTC_SYMBOLS.has(asset.type)) {
+    if (BTC_SYMBOLS.has(asset.symbol) || BTC_SYMBOLS.has(asset.type) || BTC_SYMBOLS.has(asset.symbol.toUpperCase())) {
       // 比特幣：Binance（直接支援 CORS）
       try {
         const r = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT',
@@ -821,10 +829,10 @@ async function fetchPrice(asset) {
       asset.nowPrice  = (await r.json())?.bitcoin?.usd ?? null;
       asset.priceName = 'Bitcoin';
 
-    } else if (TW_STOCK_TYPE.has(asset.type) || asset.cur === 'TWD') {
+    } else if (TW_STOCK_TYPE.has(asset.type) || TW_CURRENCY.has(asset.cur)) {
       // 台股：FinMind（支援 CORS，免費）
       asset.nowPrice  = await fetchTWPrice(asset.symbol);
-      asset.priceName = asset.symbol;
+      asset.priceName = asset.displayName || asset.symbol;
 
     } else {
       // 美股：Finnhub（支援 CORS，免費）
