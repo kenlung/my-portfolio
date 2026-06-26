@@ -561,6 +561,27 @@ const saveCfg = cfg => localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
 let tokenClient = null;
 let accessToken = null;
 
+const TOKEN_KEY = 'gtoken_v1';
+
+function saveToken(token, expiresIn) {
+  sessionStorage.setItem(TOKEN_KEY, JSON.stringify({
+    token,
+    expiresAt: Date.now() + (expiresIn - 120) * 1000, // 提前 2 分鐘視為過期
+  }));
+}
+
+function loadToken() {
+  try {
+    const t = JSON.parse(sessionStorage.getItem(TOKEN_KEY));
+    if (t && t.expiresAt > Date.now()) return t.token;
+  } catch {}
+  return null;
+}
+
+function clearToken() {
+  sessionStorage.removeItem(TOKEN_KEY);
+}
+
 // ── 初始化 ──────────────────────────────────────────────────
 window.addEventListener('load', () => {
   const cfg = loadCfg();
@@ -570,11 +591,49 @@ window.addEventListener('load', () => {
 
   if (!cfg.clientId) {
     document.getElementById('setupSection').style.display = 'block';
+    return;
+  }
+
+  // 嘗試從 sessionStorage 恢復 token（重新整理免登入）
+  const saved = loadToken();
+  if (saved) {
+    accessToken = saved;
+    restoreSession();
   } else {
     document.getElementById('loginSection').style.display = 'block';
     initOAuth(cfg.clientId);
   }
 });
+
+async function restoreSession() {
+  // 驗證 token 是否仍有效，並取得使用者資訊
+  try {
+    const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!r.ok) throw new Error('token 無效');
+    const u = await r.json();
+    document.getElementById('userName').textContent = u.name || u.email || '';
+    if (u.picture) document.getElementById('userAvatar').src = u.picture;
+    document.getElementById('userInfo').style.display = 'flex';
+  } catch {
+    // token 失效，清除並顯示登入
+    clearToken();
+    accessToken = null;
+    document.getElementById('loginSection').style.display = 'block';
+    const cfg = loadCfg();
+    initOAuth(cfg.clientId);
+    return;
+  }
+
+  document.getElementById('loginSection').style.display = 'none';
+  document.getElementById('configSection').style.display = 'block';
+  document.getElementById('refreshBtn').style.display = 'block';
+
+  const cfg = loadCfg();
+  if (cfg.sheetId) { openConfig(false); reloadAll(); }
+  else openConfig(true);
+}
 
 function saveClientId() {
   const id = document.getElementById('clientIdInput').value.trim();
@@ -610,6 +669,7 @@ async function onTokenReceived(resp) {
   document.getElementById('loginBtn').disabled = false;
   if (resp.error) { showStatus('error', `登入失敗：${resp.error}`); return; }
   accessToken = resp.access_token;
+  saveToken(accessToken, resp.expires_in || 3600);
 
   try {
     const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
@@ -633,6 +693,7 @@ async function onTokenReceived(resp) {
 function signOut() {
   if (accessToken) google.accounts.oauth2.revoke(accessToken);
   accessToken = null;
+  clearToken();
   ['summaryGrid','chartSection','detailSection'].forEach(id => document.getElementById(id).style.display = 'none');
   document.getElementById('loginSection').style.display = 'block';
   document.getElementById('configSection').style.display = 'none';
