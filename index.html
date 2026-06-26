@@ -914,7 +914,44 @@ function renderAll(assets, usdRate) {
       labels: withPrice.map(a => a.type),
       datasets: [{ data: withPrice.map(a => a.marketValTWD), backgroundColor: withPrice.map((a,i) => getColor(a.type, calc.indexOf(a))), borderColor: '#0d0f0e', borderWidth: 3 }]
     },
-    options: { cutout: '60%', plugins: { legend: { display: false }, tooltip: { enabled: false } }, animation: { duration: 600 } }
+    options: {
+      cutout: '60%',
+      animation: { duration: 600 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          enabled: true,
+          backgroundColor: '#141714',
+          borderColor: '#1f231f',
+          borderWidth: 1,
+          titleColor: '#e8ece8',
+          bodyColor: '#c8ccc8',
+          titleFont: { family: "'IBM Plex Mono', monospace", size: 12, weight: '600' },
+          bodyFont: { family: "'IBM Plex Mono', monospace", size: 11 },
+          padding: 12,
+          cornerRadius: 2,
+          displayColors: true,
+          boxWidth: 8,
+          boxHeight: 8,
+          boxPadding: 4,
+          callbacks: {
+            title: ctx => {
+              const a = withPrice[ctx[0].dataIndex];
+              return a ? (a.displayName || a.type) : ctx[0].label;
+            },
+            label: ctx => {
+              const a = withPrice[ctx.dataIndex];
+              if (!a) return '';
+              const pct = (ctx.parsed / withPrice.reduce((s,x) => s + x.marketValTWD, 0) * 100).toFixed(1);
+              const valStr = a.cur === 'USD'
+                ? `US$${fmt(a.marketVal)} ≈ NT$${fmt(a.marketValTWD, 0)}`
+                : `NT$${fmt(a.marketValTWD, 0)}`;
+              return [`${valStr}`, `佔比 ${pct}%`];
+            },
+          }
+        }
+      }
+    }
   });
 
   document.getElementById('legend').innerHTML = withPrice.map((a, i) => {
