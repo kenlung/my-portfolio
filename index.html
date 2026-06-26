@@ -721,10 +721,10 @@ async function reloadAll() {
 }
 
 // ── 抓現價 ────────────────────────────────────────────────────
-const BTC_SYMBOLS = new Set(['BTC', 'BITCOIN', '比特幣']);
+const BTC_SYMBOLS  = new Set(['BTC', 'BITCOIN', '比特幣']);
 const TW_STOCK_TYPE = new Set(['台股', '台灣股票', 'TW']);
 
-// CORS proxy 備援清單（依序嘗試）
+// CORS proxy 備援清單（依序嘗試，用於美股）
 const PROXIES = [
   url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
   url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
@@ -734,26 +734,56 @@ const PROXIES = [
 async function fetchViaProxy(url) {
   for (const makeProxy of PROXIES) {
     try {
-      const r = await fetch(makeProxy(url), { cache: 'no-store', signal: AbortSignal.timeout(6000) });
+      const r = await fetch(makeProxy(url), { cache: 'no-store', signal: AbortSignal.timeout(7000) });
       if (!r.ok) continue;
       const text = await r.text();
-      // allorigins 把結果包在 { contents: "..." }，其他 proxy 直接回傳
       try {
         const outer = JSON.parse(text);
         if (outer?.contents) return JSON.parse(outer.contents);
         return outer;
-      } catch {
-        return JSON.parse(text);
-      }
+      } catch { return JSON.parse(text); }
     } catch { /* 嘗試下一個 */ }
   }
   throw new Error('所有 proxy 均失敗');
 }
 
+// 台股：TWSE OpenAPI 快取（一次撈全部，不需 proxy）
+let twseCache = null;
+async function fetchTWSEAll() {
+  if (twseCache) return twseCache;
+  // 上市股票
+  const [listedRes, otcRes] = await Promise.allSettled([
+    fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL', { cache: 'no-store', signal: AbortSignal.timeout(8000) }),
+    fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes', { cache: 'no-store', signal: AbortSignal.timeout(8000) }),
+  ]);
+
+  const map = {};
+
+  if (listedRes.status === 'fulfilled' && listedRes.value.ok) {
+    const data = await listedRes.value.json();
+    for (const s of data) {
+      const price = parseFloat(s.ClosingPrice?.replace(/,/g, ''));
+      if (!isNaN(price)) map[s.Code] = price;
+    }
+  }
+
+  if (otcRes.status === 'fulfilled' && otcRes.value.ok) {
+    const data = await otcRes.value.json();
+    for (const s of data) {
+      // OTC 欄位名稱：SecuritiesCompanyCode, Close
+      const price = parseFloat((s.Close || s.ClosingPrice || '').replace(/,/g, ''));
+      if (!isNaN(price)) map[s.SecuritiesCompanyCode || s.Code] = price;
+    }
+  }
+
+  twseCache = map;
+  return map;
+}
+
 async function fetchPrice(asset) {
   try {
     if (BTC_SYMBOLS.has(asset.symbol) || BTC_SYMBOLS.has(asset.type)) {
-      // 比特幣：Binance 最穩定（直接支援 CORS）
+      // 比特幣：Binance（直接支援 CORS）
       try {
         const r = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT',
           { cache: 'no-store', signal: AbortSignal.timeout(5000) });
@@ -765,19 +795,19 @@ async function fetchPrice(asset) {
       // 備援：CoinGecko
       const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd',
         { cache: 'no-store', signal: AbortSignal.timeout(5000) });
-      const d = await r.json();
-      asset.nowPrice  = d?.bitcoin?.usd ?? null;
+      asset.nowPrice  = (await r.json())?.bitcoin?.usd ?? null;
       asset.priceName = 'Bitcoin';
 
     } else if (TW_STOCK_TYPE.has(asset.type) || asset.cur === 'TWD') {
-      // 台股：Yahoo Finance proxy，用數字代號（如 2330.TW）
-      const data = await fetchViaProxy(
-        `https://query1.finance.yahoo.com/v8/finance/chart/${asset.symbol}.TW?interval=1d&range=1d`
-      );
-      const meta = data?.chart?.result?.[0]?.meta;
-      if (!meta) throw new Error('無資料');
-      asset.nowPrice  = meta.regularMarketPrice ?? null;
-      asset.priceName = asset.symbol; // 顯示代號數字，不取公司名稱
+      // 台股：TWSE / TPEx OpenAPI（免 proxy，直接 CORS）
+      const map = await fetchTWSEAll();
+      const price = map[asset.symbol];
+      if (price != null) {
+        asset.nowPrice  = price;
+        asset.priceName = asset.symbol;
+        return;
+      }
+      throw new Error(`${asset.symbol} 不在 TWSE/TPEx 資料中`);
 
     } else {
       // 美股：Yahoo Finance via proxy 備援清單
@@ -787,7 +817,7 @@ async function fetchPrice(asset) {
       const meta = data?.chart?.result?.[0]?.meta;
       if (!meta) throw new Error('無資料');
       asset.nowPrice  = meta.regularMarketPrice ?? null;
-      asset.priceName = meta.shortName || meta.longName || asset.symbol;
+      asset.priceName = asset.symbol;
     }
   } catch {
     asset.nowPrice  = null;
